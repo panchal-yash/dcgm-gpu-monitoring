@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  dcgm-exporter:
+    image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.5-3.4.0-ubuntu22.04
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - DCGM_EXPORTER_COLLECTORS=/etc/dcgm-exporter/custom-counters.csv
+    volumes:
+      - /root/dcgm-config/custom-counters.csv:/etc/dcgm-exporter/custom-counters.csv
+    cap_add:
+      - SYS_ADMIN
+    ports:
+      - "9400:9400"
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    volumes:
+      - /root/otel-config/otel-collector-config.yaml:/etc/otelcol/config.yaml
+    ports:
+      - "8889:8889"
+    depends_on:
+      - dcgm-exporter
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - /root/prometheus.yaml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
